@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h2>Welcome to the Dashboard</h2>
+  <a href="profile.html" class="btn btn-primary">My Profile</a>
+  <button onclick="window.location.href='create-post.html'">+ Create Post</button>
+  <div id="posts"></div>
+  <button onclick="logout()">Logout</button>
+
+  <script>
+    const token = localStorage.getItem('token');
+    console.log("Fetched token from localStorage:", token);
+
+    async function fetchPosts() {
+      try {
+        const res = await fetch('http://localhost:5000/api/posts', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const data = await res.json();
+        console.log("Server response:", data);
+
+        if (!res.ok) {
+          alert(data.message || 'Something went wrong');
+          if (res.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = "login.html";
+          }
+          return;
+        }
+
+        if (!Array.isArray(data)) {
+          console.error("Expected an array of posts, but got:", data);
+          return;
+        }
+
+        const postsDiv = document.getElementById('posts');
+        postsDiv.innerHTML = "";
+
+        data.reverse().forEach(post => {
+          const postEl = document.createElement('div');
+          postEl.classList.add('post');
+          postEl.style.border = "1px solid gray";
+          postEl.style.padding = "10px";
+          postEl.style.marginBottom = "10px";
+
+          // Username with profile link
+          const userLink = document.createElement('a');
+          userLink.href = `profile.html?id=${post.userId?._id}`;
+          userLink.textContent = post.userId?.username || "Anonymous";
+          userLink.style.fontWeight = "bold";
+          postEl.appendChild(userLink);
+
+          const content = document.createElement('p');
+          content.textContent = post.content;
+          postEl.appendChild(content);
+
+          const meta = document.createElement('small');
+          meta.textContent = new Date(post.createdAt).toLocaleString();
+          postEl.appendChild(meta);
+
+          if (post.image) {
+            const img = document.createElement('img');
+            img.src = `http://localhost:5000/uploads/${post.image}`;
+            img.style.maxWidth = "300px";
+            img.style.display = "block";
+            img.style.marginTop = "10px";
+            postEl.appendChild(img);
+          }
+
+          const likeBtn = document.createElement('button');
+          likeBtn.textContent = `❤️ ${post.likes?.length || 0}`;
+          likeBtn.onclick = () => likePost(post._id);
+          postEl.appendChild(document.createElement('br'));
+          postEl.appendChild(likeBtn);
+
+          const commentForm = document.createElement('form');
+          commentForm.onsubmit = (e) => commentOnPost(e, post._id);
+
+          const commentInput = document.createElement('input');
+          commentInput.type = "text";
+          commentInput.name = "comment";
+          commentInput.placeholder = "Add a comment";
+          commentInput.required = true;
+
+          const commentBtn = document.createElement('button');
+          commentBtn.type = "submit";
+          commentBtn.textContent = "Comment";
+
+          commentForm.appendChild(commentInput);
+          commentForm.appendChild(commentBtn);
+          postEl.appendChild(commentForm);
+
+          const commentsDiv = document.createElement('div');
+          if (post.comments?.length) {
+            post.comments.forEach(c => {
+              const p = document.createElement('p');
+              p.innerHTML = `<strong>${c.userId?.username || 'User'}:</strong> ${c.text}`;
+              commentsDiv.appendChild(p);
+            });
+          }
+          postEl.appendChild(commentsDiv);
+          postsDiv.appendChild(postEl);
+        });
+
+      } catch (err) {
+        console.error("Fetch error:", err);
+        alert("Something went wrong. Check console.");
+      }
+    }
+
+    async function likePost(postId) {
+      try {
+        await fetch(`http://localhost:5000/api/posts/${postId}/like`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        fetchPosts();
+      } catch (err) {
+        console.error("Like error:", err);
+      }
+    }
+
+    async function commentOnPost(event, postId) {
+      event.preventDefault();
+      const text = event.target.comment.value;
+      if (!text.trim()) return;
+
+      try {
+        await fetch(`http://localhost:5000/api/posts/${postId}/comment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ text })
+        });
+        event.target.comment.value = "";
+        fetchPosts();
+      } catch (err) {
+        console.error("Comment error:", err);
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = "login.html";
+    }
+
+    fetchPosts();
+  </script>
+</body>
+</html>

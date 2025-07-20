@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>User Profile</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h2>User Profile</h2>
+  <div id="profileInfo"></div>
+  <hr>
+  <h3>User's Posts</h3>
+  <div id="userPosts"></div>
+  <button onclick="window.location.href='dashboard.html'">← Back to Dashboard</button>
+<script src="https://cdn.jsdelivr.net/npm/jwt-decode@3.1.2/build/jwt-decode.min.js"></script>
+
+ <script>
+  const token = localStorage.getItem("token");
+if (!token) {
+  alert("Login first");
+  window.location.href = "login.html";
+}
+
+const decoded = jwt_decode(token);
+console.log("Decoded token:", decoded); // ✅ Check what’s inside
+const userId = localStorage.getItem("userId");
+
+  async function fetchProfile() {
+    try {
+      const res = await fetch(`http://localhost:5000/api/users/${userId}`);
+      const user = await res.json();
+
+      const info = document.getElementById("profileInfo");
+      info.innerHTML = `<h3>${user.username}</h3><p>Email: ${user.email || 'N/A'}</p>`;
+    } catch (err) {
+      console.error("Failed to fetch user:", err);
+      document.getElementById("profileInfo").textContent = "User not found.";
+    }
+  }
+
+  async function fetchUserPosts() {
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/user/${userId}`);
+      const posts = await res.json();
+
+      const postsDiv = document.getElementById("userPosts");
+      postsDiv.innerHTML = "";
+
+      if (!posts.length) {
+        postsDiv.textContent = "No posts yet.";
+        return;
+      }
+
+      posts.reverse().forEach(post => {
+        const postEl = document.createElement("div");
+        postEl.style.border = "1px solid #ccc";
+        postEl.style.padding = "10px";
+        postEl.style.marginBottom = "10px";
+
+        const content = document.createElement("p");
+        content.textContent = post.content;
+        postEl.appendChild(content);
+
+        if (post.image) {
+          const img = document.createElement("img");
+          img.src = `http://localhost:5000/uploads/${post.image}`;
+          img.style.maxWidth = "300px";
+          img.style.display = "block";
+          img.style.marginTop = "10px";
+          postEl.appendChild(img);
+        }
+
+        const meta = document.createElement("small");
+        meta.textContent = new Date(post.createdAt).toLocaleString();
+        postEl.appendChild(meta);
+
+        const like = document.createElement("p");
+        like.textContent = `❤️ ${post.likes?.length || 0} Likes`;
+        postEl.appendChild(like);
+
+        const comments = document.createElement("div");
+        if (post.comments?.length) {
+          post.comments.forEach(c => {
+            const p = document.createElement("p");
+            p.innerHTML = `<strong>${c.userId?.username || "User"}:</strong> ${c.text}`;
+            comments.appendChild(p);
+          });
+        }
+
+        postEl.appendChild(comments);
+        postsDiv.appendChild(postEl);
+      });
+
+    } catch (err) {
+      console.error("Failed to fetch posts:", err);
+      document.getElementById("userPosts").textContent = "Could not load posts.";
+    }
+  }
+
+  // ✅ Load profile and posts using userId from token
+  fetchProfile();
+  fetchUserPosts();
+</script>
+
+</body>
+</html>
